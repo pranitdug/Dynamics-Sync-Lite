@@ -1,8 +1,6 @@
 <?php
 /**
- * Dynamics 365 API Handler (FIXED - No 500 Errors)
- * 
- * Handles all communication with Microsoft Dynamics 365 API
+ * Dynamics 365 API Handler - FIXED TEST CONNECTION
  */
 
 if (!defined('ABSPATH')) {
@@ -15,7 +13,6 @@ class DSL_Dynamics_API {
     private $access_token = null;
     private $token_expires = 0;
     
-    // API Configuration
     private $client_id;
     private $client_secret;
     private $tenant_id;
@@ -40,33 +37,23 @@ class DSL_Dynamics_API {
         $this->resource_url = trim(get_option('dsl_resource_url', ''));
         $this->api_version = get_option('dsl_api_version', '9.2');
         
-        // Ensure trailing slash
         if (!empty($this->resource_url) && substr($this->resource_url, -1) !== '/') {
             $this->resource_url .= '/';
         }
     }
     
     public function is_configured() {
-        if (DSL_Demo_Mode::is_enabled()) {
-            return true;
-        }
-        
         return !empty($this->client_id) && 
                !empty($this->client_secret) && 
                !empty($this->tenant_id) && 
                !empty($this->resource_url);
     }
     
-    /**
-     * Get OAuth 2.0 access token - FIXED
-     */
     private function get_access_token() {
-        // Return cached token if valid
         if ($this->access_token && time() < $this->token_expires) {
             return $this->access_token;
         }
         
-        // Check transient
         $cached = get_transient('dsl_access_token');
         if ($cached && is_array($cached) && isset($cached['token'], $cached['expires'])) {
             if (time() < $cached['expires']) {
@@ -76,7 +63,6 @@ class DSL_Dynamics_API {
             }
         }
         
-        // Request new token
         $token_url = "https://login.microsoftonline.com/{$this->tenant_id}/oauth2/v2.0/token";
         $scope = rtrim($this->resource_url, '/') . '/.default';
         
@@ -117,19 +103,14 @@ class DSL_Dynamics_API {
             return $this->access_token;
         }
         
-        // Enhanced error logging
         $error = $body['error_description'] ?? $body['error'] ?? 'Unknown error';
         DSL_Logger::log('error', 'Token error: ' . $error, array(
             'status' => $status,
-            'error_code' => $body['error'] ?? 'unknown',
-            'full_response' => $body
+            'error_code' => $body['error'] ?? 'unknown'
         ));
         return false;
     }
     
-    /**
-     * Make API request - FIXED for 500 errors
-     */
     private function request($method, $endpoint, $data = null) {
         if (!$this->is_configured()) {
             return new WP_Error('not_configured', 'API not configured');
@@ -140,7 +121,6 @@ class DSL_Dynamics_API {
             return new WP_Error('auth_failed', 'Authentication failed');
         }
         
-        // Build URL properly
         $base_url = rtrim($this->resource_url, '/');
         $endpoint = ltrim($endpoint, '/');
         $url = "{$base_url}/api/data/v{$this->api_version}/{$endpoint}";
@@ -175,14 +155,12 @@ class DSL_Dynamics_API {
         $status = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
         
-        // Success codes
         if ($status >= 200 && $status < 300) {
             DSL_Logger::log('success', "API success: {$status}");
             $decoded = json_decode($body, true);
             return $decoded !== null ? $decoded : array('success' => true);
         }
         
-        // Error handling
         DSL_Logger::log('error', "API error {$status}", array(
             'body' => substr($body, 0, 500)
         ));
@@ -201,20 +179,12 @@ class DSL_Dynamics_API {
         return new WP_Error('api_error', "API Error ({$status}): {$error_msg}");
     }
     
-    /**
-     * Get contact by email - FIXED
-     */
     public function get_contact_by_email($email) {
-        if (DSL_Demo_Mode::is_enabled()) {
-            return DSL_Demo_Mode::get_contact_by_email($email);
-        }
-        
         $email = sanitize_email($email);
         
-        // Use proper OData filter encoding
         $filter = rawurlencode("emailaddress1 eq '{$email}'");
         $select = 'contactid,firstname,lastname,emailaddress1,telephone1,address1_line1,address1_city,address1_stateorprovince,address1_postalcode,address1_country';
-        $endpoint = "contacts?\$filter={$filter}&\$select={$select}&\$top=1";
+        $endpoint = "contacts?\$filter={$filter}&\$select={$select}";
         
         $result = $this->request('GET', $endpoint);
         
@@ -229,17 +199,9 @@ class DSL_Dynamics_API {
         return new WP_Error('not_found', 'Contact not found');
     }
     
-    /**
-     * Update contact - FIXED
-     */
     public function update_contact($contact_id, $data) {
-        if (DSL_Demo_Mode::is_enabled()) {
-            return DSL_Demo_Mode::update_contact($contact_id, $data);
-        }
-        
         $contact_id = sanitize_text_field($contact_id);
         
-        // Prepare update data - only include non-empty fields
         $update_data = array();
         
         $field_map = array(
@@ -276,21 +238,13 @@ class DSL_Dynamics_API {
         return $this->request('PATCH', $endpoint, $update_data);
     }
     
-    /**
-     * Create contact - FIXED
-     */
     public function create_contact($data) {
-        if (DSL_Demo_Mode::is_enabled()) {
-            return DSL_Demo_Mode::create_contact($data);
-        }
-        
         $create_data = array(
             'firstname' => sanitize_text_field($data['firstname'] ?? ''),
             'lastname' => sanitize_text_field($data['lastname'] ?? ''),
             'emailaddress1' => sanitize_email($data['emailaddress1'] ?? '')
         );
         
-        // Add optional fields if provided
         $optional_fields = array(
             'telephone1', 'address1_line1', 'address1_city',
             'address1_stateorprovince', 'address1_postalcode', 'address1_country'
@@ -310,13 +264,9 @@ class DSL_Dynamics_API {
     }
     
     /**
-     * Test connection - FIXED
+     * Test connection - FIXED to avoid $top parameter error
      */
     public function test_connection() {
-        if (DSL_Demo_Mode::is_enabled()) {
-            return DSL_Demo_Mode::test_connection();
-        }
-        
         if (!$this->is_configured()) {
             return array(
                 'success' => false,
@@ -324,28 +274,88 @@ class DSL_Dynamics_API {
             );
         }
         
-        // Test token
+        // Step 1: Test token acquisition
+        DSL_Logger::log('info', 'Testing connection: Getting access token');
         $token = $this->get_access_token();
+        
         if (!$token) {
             return array(
                 'success' => false,
-                'message' => 'Failed to obtain access token. Check your credentials.'
+                'message' => 'Failed to obtain access token. Please check your Client ID, Client Secret, and Tenant ID.'
             );
         }
         
-        // Test API call
-        $result = $this->request('GET', 'contacts?\$top=1&\$select=contactid');
+        DSL_Logger::log('success', 'Test connection: Token obtained successfully');
         
-        if (is_wp_error($result)) {
+        // Step 2: Test API endpoint with WhoAmI request (more reliable than contacts)
+        $base_url = rtrim($this->resource_url, '/');
+        $url = "{$base_url}/api/data/v{$this->api_version}/WhoAmI";
+        
+        $response = wp_remote_get($url, array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $token,
+                'Accept' => 'application/json',
+                'OData-MaxVersion' => '4.0',
+                'OData-Version' => '4.0'
+            ),
+            'timeout' => 30,
+            'sslverify' => true
+        ));
+        
+        if (is_wp_error($response)) {
+            DSL_Logger::log('error', 'Test connection failed: ' . $response->get_error_message());
             return array(
                 'success' => false,
-                'message' => 'API call failed: ' . $result->get_error_message()
+                'message' => 'API connection failed: ' . $response->get_error_message()
             );
         }
         
+        $status = wp_remote_retrieve_response_code($response);
+        
+        if ($status === 200) {
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+            
+            DSL_Logger::log('success', 'Test connection: API call successful', array(
+                'status' => $status,
+                'user_id' => $body['UserId'] ?? 'unknown'
+            ));
+            
+            return array(
+                'success' => true,
+                'message' => '✅ Connection successful! Your Dynamics 365 API is properly configured and accessible.'
+            );
+        }
+        
+        // If WhoAmI fails, try a simple metadata request as fallback
+        $metadata_url = "{$base_url}/api/data/v{$this->api_version}/\$metadata";
+        
+        $metadata_response = wp_remote_get($metadata_url, array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $token
+            ),
+            'timeout' => 30,
+            'sslverify' => true
+        ));
+        
+        if (!is_wp_error($metadata_response) && wp_remote_retrieve_response_code($metadata_response) === 200) {
+            DSL_Logger::log('success', 'Test connection: Metadata endpoint accessible');
+            
+            return array(
+                'success' => true,
+                'message' => '✅ Connection successful! API endpoint is accessible (verified via metadata).'
+            );
+        }
+        
+        // Connection failed
+        $error_body = wp_remote_retrieve_body($response);
+        DSL_Logger::log('error', 'Test connection failed', array(
+            'status' => $status,
+            'body' => substr($error_body, 0, 500)
+        ));
+        
         return array(
-            'success' => true,
-            'message' => 'Connection successful! API is working correctly.'
+            'success' => false,
+            'message' => "Connection test failed (Status: {$status}). Please verify your Resource URL and API permissions."
         );
     }
 }

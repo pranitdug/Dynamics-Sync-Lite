@@ -1,6 +1,6 @@
 <?php
 /**
- * Settings Page - OAuth Edition
+ * Settings Page - Production Ready
  */
 
 if (!defined('ABSPATH')) {
@@ -22,6 +22,7 @@ class DSL_Settings {
         add_action('admin_menu', array($this, 'add_menu'));
         add_action('admin_init', array($this, 'register_settings'));
         add_action('wp_ajax_dsl_test_connection', array($this, 'ajax_test_connection'));
+        add_action('wp_ajax_dsl_clear_logs', array($this, 'ajax_clear_logs'));
     }
     
     public function add_menu() {
@@ -35,62 +36,75 @@ class DSL_Settings {
     }
     
     public function register_settings() {
-        // Demo Mode Section
-        add_settings_section(
-            'dsl_demo_settings',
-            'Demo Mode',
-            array($this, 'render_demo_section'),
-            'dynamics-sync-lite'
-        );
-        
-        register_setting('dsl_settings', 'dsl_demo_mode', array(
-            'sanitize_callback' => array($this, 'sanitize_checkbox')
-        ));
-        
-        add_settings_field(
-            'dsl_demo_mode',
-            'Enable Demo Mode',
-            array($this, 'render_checkbox_field'),
-            'dynamics-sync-lite',
-            'dsl_demo_settings',
-            array(
-                'key' => 'dsl_demo_mode',
-                'description' => 'Test the plugin without real Dynamics credentials'
-            )
-        );
-        
         // API Configuration Section
         add_settings_section(
             'dsl_api_settings',
-            'API Configuration',
+            '🔧 API Configuration',
             array($this, 'render_api_section'),
             'dynamics-sync-lite'
         );
         
         $api_fields = array(
-            'dsl_client_id' => 'Client ID',
-            'dsl_client_secret' => 'Client Secret',
-            'dsl_tenant_id' => 'Tenant ID',
-            'dsl_resource_url' => 'Resource URL',
-            'dsl_api_version' => 'API Version'
+            'dsl_client_id' => array(
+                'label' => 'Client ID',
+                'type' => 'text',
+                'placeholder' => 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+                'description' => 'Azure AD Application (Client) ID'
+            ),
+            'dsl_client_secret' => array(
+                'label' => 'Client Secret',
+                'type' => 'password',
+                'placeholder' => 'Your client secret value',
+                'description' => 'Azure AD Client Secret (never share this)'
+            ),
+            'dsl_tenant_id' => array(
+                'label' => 'Tenant ID',
+                'type' => 'text',
+                'placeholder' => 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+                'description' => 'Azure AD Directory (Tenant) ID'
+            ),
+            'dsl_resource_url' => array(
+                'label' => 'Resource URL',
+                'type' => 'url',
+                'placeholder' => 'https://yourorg.crm.dynamics.com/',
+                'description' => 'Your Dynamics 365 instance URL (must end with /)'
+            ),
+            'dsl_api_version' => array(
+                'label' => 'API Version',
+                'type' => 'text',
+                'placeholder' => '9.2',
+                'description' => 'Dynamics 365 Web API version (default: 9.2)'
+            )
         );
         
-        foreach ($api_fields as $key => $label) {
+        foreach ($api_fields as $key => $field) {
             register_setting('dsl_settings', $key, array(
-                'sanitize_callback' => 'sanitize_text_field'
+                'sanitize_callback' => $field['type'] === 'url' ? 'esc_url_raw' : 'sanitize_text_field'
             ));
             
             add_settings_field(
                 $key,
-                $label,
-                array($this, 'render_field'),
+                $field['label'],
+                array($this, 'render_text_field'),
                 'dynamics-sync-lite',
                 'dsl_api_settings',
-                array('key' => $key)
+                array(
+                    'key' => $key,
+                    'type' => $field['type'],
+                    'placeholder' => $field['placeholder'],
+                    'description' => $field['description']
+                )
             );
         }
         
-        // Redirect URL
+        // OAuth Settings Section
+        add_settings_section(
+            'dsl_oauth_settings',
+            '🔐 OAuth Settings',
+            array($this, 'render_oauth_section'),
+            'dynamics-sync-lite'
+        );
+        
         register_setting('dsl_settings', 'dsl_oauth_redirect_url', array(
             'sanitize_callback' => 'esc_url_raw'
         ));
@@ -98,13 +112,25 @@ class DSL_Settings {
         add_settings_field(
             'dsl_oauth_redirect_url',
             'Redirect After Login',
-            array($this, 'render_url_field'),
+            array($this, 'render_text_field'),
             'dynamics-sync-lite',
-            'dsl_api_settings',
-            array('key' => 'dsl_oauth_redirect_url')
+            'dsl_oauth_settings',
+            array(
+                'key' => 'dsl_oauth_redirect_url',
+                'type' => 'url',
+                'placeholder' => home_url(),
+                'description' => 'Where to redirect users after successful OAuth login'
+            )
         );
         
-        // Logging
+        // Advanced Settings Section
+        add_settings_section(
+            'dsl_advanced_settings',
+            '⚙️ Advanced Settings',
+            array($this, 'render_advanced_section'),
+            'dynamics-sync-lite'
+        );
+        
         register_setting('dsl_settings', 'dsl_enable_logging', array(
             'sanitize_callback' => array($this, 'sanitize_checkbox')
         ));
@@ -114,58 +140,60 @@ class DSL_Settings {
             'Enable Logging',
             array($this, 'render_checkbox_field'),
             'dynamics-sync-lite',
-            'dsl_api_settings',
+            'dsl_advanced_settings',
             array(
                 'key' => 'dsl_enable_logging',
-                'description' => 'Log API calls for debugging'
+                'description' => 'Log API calls and user actions for debugging'
             )
         );
     }
     
-    public function render_demo_section() {
-        if (DSL_Demo_Mode::is_enabled()) {
-            echo '<p style="color: #d63638; font-weight: bold;">⚠️ Demo Mode is ACTIVE - using simulated data</p>';
-        } else {
-            echo '<p>Enable demo mode to test without real API credentials.</p>';
-        }
-    }
-    
     public function render_api_section() {
-        $is_demo = DSL_Demo_Mode::is_enabled();
+        echo '<p>Configure your Microsoft Dynamics 365 and Azure AD credentials.</p>';
         
-        if ($is_demo) {
-            echo '<p style="color: #666; font-style: italic;">API configuration not required in Demo Mode.</p>';
-        } else {
-            echo '<p>Configure your Microsoft Dynamics 365 API credentials.</p>';
-            echo '<p><strong>OAuth Callback URL:</strong> <code>' . home_url('/dynamics-oauth-callback/') . '</code></p>';
-            echo '<p class="description">Add this URL to your Azure AD app registration.</p>';
+        echo '<div style="background: #f9f9f9; padding: 15px; border: 1px solid #ddd; margin-top: 15px;">';
+        echo '<strong>📋 OAuth Callback URL:</strong><br/>';
+        echo '<code style="background: #fff; padding: 5px 10px; display: inline-block; margin-top: 5px;">' . home_url('/dynamics-oauth-callback/') . '</code><br/>';
+        echo '<small style="color: #666;">Add this URL to your Azure AD app registration as a redirect URI.</small>';
+        echo '</div>';
+    }
+    
+    public function render_oauth_section() {
+        echo '<p>Configure OAuth redirect behavior.</p>';
+    }
+    
+    public function render_advanced_section() {
+        $log_count = DSL_Logger::get_log_count();
+        echo '<p>Advanced plugin settings and maintenance options.</p>';
+        
+        if ($log_count > 0) {
+            echo '<div style="background: #f9f9f9; padding: 15px; border: 1px solid #ddd; margin-top: 15px;">';
+            echo '<strong>📊 Log Statistics:</strong><br/>';
+            echo 'Total logs: <strong>' . number_format($log_count) . '</strong><br/>';
+            echo 'Success: <strong>' . DSL_Logger::get_log_count('success') . '</strong> | ';
+            echo 'Errors: <strong>' . DSL_Logger::get_log_count('error') . '</strong> | ';
+            echo 'Info: <strong>' . DSL_Logger::get_log_count('info') . '</strong><br/>';
+            echo '<button type="button" class="button button-secondary" id="dsl-clear-logs" style="margin-top: 10px;">Clear All Logs</button>';
+            echo '</div>';
         }
     }
     
-    public function render_field($args) {
+    public function render_text_field($args) {
         $key = $args['key'];
+        $type = $args['type'] ?? 'text';
+        $placeholder = $args['placeholder'] ?? '';
+        $description = $args['description'] ?? '';
         $value = get_option($key, '');
-        $type = ($key === 'dsl_client_secret') ? 'password' : 'text';
-        $disabled = DSL_Demo_Mode::is_enabled() ? 'disabled' : '';
-        
-        $placeholder = '';
-        if ($key === 'dsl_resource_url') {
-            $placeholder = 'https://yourorg.crm.dynamics.com/';
-        } elseif ($key === 'dsl_api_version') {
-            $placeholder = '9.2';
-        }
         
         echo '<input type="' . esc_attr($type) . '" 
                      id="' . esc_attr($key) . '" 
                      name="' . esc_attr($key) . '" 
                      value="' . esc_attr($value) . '" 
                      placeholder="' . esc_attr($placeholder) . '"
-                     class="regular-text" ' . $disabled . ' />';
+                     class="regular-text" />';
         
-        if ($key === 'dsl_resource_url') {
-            echo '<p class="description">Example: https://yourorg.crm.dynamics.com/</p>';
-        } elseif ($key === 'dsl_api_version') {
-            echo '<p class="description">Default: 9.2</p>';
+        if ($description) {
+            echo '<p class="description">' . esc_html($description) . '</p>';
         }
     }
     
@@ -184,18 +212,6 @@ class DSL_Settings {
               </label>';
     }
     
-    public function render_url_field($args) {
-        $key = $args['key'];
-        $value = get_option($key, home_url());
-        
-        echo '<input type="url" 
-                     id="' . esc_attr($key) . '" 
-                     name="' . esc_attr($key) . '" 
-                     value="' . esc_attr($value) . '" 
-                     class="regular-text" />';
-        echo '<p class="description">Where to redirect users after OAuth login</p>';
-    }
-    
     public function sanitize_checkbox($value) {
         return ($value === '1') ? '1' : '0';
     }
@@ -209,23 +225,30 @@ class DSL_Settings {
             add_settings_error(
                 'dsl_messages',
                 'dsl_message',
-                'Settings saved successfully!',
+                '✅ Settings saved successfully!',
                 'success'
             );
         }
         
-        $is_demo = DSL_Demo_Mode::is_enabled();
+        $api = DSL_Dynamics_API::get_instance();
+        $is_configured = $api->is_configured();
         
         ?>
         <div class="wrap">
-            <h1>Dynamics Sync Lite - OAuth Edition</h1>
+            <h1>⚙️ Dynamics Sync Lite Settings</h1>
             
             <?php settings_errors('dsl_messages'); ?>
             
-            <?php if ($is_demo): ?>
-            <div class="notice notice-info inline" style="margin: 20px 0; padding: 15px;">
+            <?php if (!$is_configured): ?>
+            <div class="notice notice-warning inline" style="margin: 20px 0; padding: 15px;">
                 <p style="margin: 0;">
-                    <strong>Demo Mode Active</strong> - Using simulated data. No real API calls.
+                    <strong>⚠️ Configuration Required</strong> - Please fill in all API credentials below to connect to Dynamics 365.
+                </p>
+            </div>
+            <?php else: ?>
+            <div class="notice notice-success inline" style="margin: 20px 0; padding: 15px;">
+                <p style="margin: 0;">
+                    <strong>✅ Plugin Configured</strong> - API credentials are set. Test your connection below.
                 </p>
             </div>
             <?php endif; ?>
@@ -234,62 +257,58 @@ class DSL_Settings {
                 <?php
                 settings_fields('dsl_settings');
                 do_settings_sections('dynamics-sync-lite');
-                submit_button('Save Settings');
+                submit_button('💾 Save Settings');
                 ?>
             </form>
             
-            <div class="dsl-test-connection" style="margin-top: 30px; padding: 20px; background: #fff; border: 1px solid #ccd0d4;">
-                <h2>Test Connection</h2>
-                <p>Test your API configuration.</p>
+            <!-- Connection Test -->
+            <div class="dsl-test-connection" style="margin-top: 30px; padding: 20px; background: #fff; border: 1px solid #ccd0d4; border-radius: 4px;">
+                <h2>🔗 Test Connection</h2>
+                <p>Test your API configuration and verify connectivity with Dynamics 365.</p>
                 <button type="button" class="button button-secondary" id="dsl-test-connection">
-                    Test Connection
+                    🔍 Test Connection
                 </button>
                 <div id="dsl-test-result" style="margin-top: 15px;"></div>
             </div>
             
-            <div class="dsl-info-box" style="margin-top: 30px; padding: 20px; background: #f9f9f9; border-left: 4px solid #2271b1;">
-                <h3>Quick Start Guide</h3>
+            <!-- Quick Start Guide -->
+            <div class="dsl-info-box" style="margin-top: 30px; padding: 20px; background: #f9f9f9; border-left: 4px solid #2271b1; border-radius: 4px;">
+                <h3>📚 Quick Start Guide</h3>
                 
-                <?php if ($is_demo): ?>
-                <div style="background: #fff3cd; padding: 15px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
-                    <h4 style="margin-top: 0;">Demo Mode Steps</h4>
-                    <ol style="margin-bottom: 0;">
-                        <li>Demo mode is enabled - no API setup needed!</li>
-                        <li>Create a page and add: <code>[dynamics_profile_oauth]</code></li>
-                        <li>Visit the page and click "Sign In with Microsoft"</li>
-                        <li>You'll be logged in as a demo user automatically</li>
-                    </ol>
-                </div>
-                <?php endif; ?>
-                
-                <h4>Production Setup</h4>
+                <h4>🚀 Setup Steps</h4>
                 <ol>
-                    <li>Disable Demo Mode</li>
-                    <li>Register an app in Azure Active Directory</li>
-                    <li>Add OAuth callback URL: <code><?php echo home_url('/dynamics-oauth-callback/'); ?></code></li>
-                    <li>Grant Dynamics 365 API permissions</li>
-                    <li>Enter Client ID, Client Secret, Tenant ID above</li>
+                    <li>Register an application in Azure Active Directory</li>
+                    <li>Configure API permissions for Dynamics 365</li>
+                    <li>Add the OAuth callback URL to your Azure app</li>
+                    <li>Enter Client ID, Client Secret, and Tenant ID above</li>
                     <li>Enter your Dynamics 365 Resource URL</li>
-                    <li>Save and test connection</li>
+                    <li>Save settings and test the connection</li>
                 </ol>
                 
                 <hr style="margin: 20px 0;">
                 
-                <h4>Usage</h4>
-                <p><strong>Login Button:</strong> <code>[dynamics_login_independent]</code></p>
-                <p><strong>Profile Form:</strong> <code>[dynamics_profile_oauth]</code></p>
-                
-                <p class="description">Users can sign in with Microsoft and manage their Dynamics 365 contact info without needing a WordPress account.</p>
+                <h4>📝 How to Use</h4>
+                <p><strong>Step 1:</strong> Create a page for login</p>
+                <p>Add this shortcode: <code>[dynamics_profile_oauth]</code></p>
+                <p><strong>Step 2:</strong> Users can:</p>
+                <ul style="margin-left: 20px;">
+                    <li>Click "Sign In with Microsoft"</li>
+                    <li>Authenticate with their Microsoft account</li>
+                    <li>View and edit their Dynamics 365 contact information</li>
+                    <li>Changes sync automatically to Dynamics</li>
+                    <li>No WordPress account needed!</li>
+                </ul>
             </div>
         </div>
         
         <script>
         jQuery(document).ready(function($) {
+            // Test Connection
             $('#dsl-test-connection').on('click', function() {
                 var btn = $(this);
                 var result = $('#dsl-test-result');
                 
-                btn.prop('disabled', true).text('Testing...');
+                btn.prop('disabled', true).text('🔄 Testing...');
                 result.html('');
                 
                 $.ajax({
@@ -303,14 +322,47 @@ class DSL_Settings {
                         if (response.success) {
                             result.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
                         } else {
-                            result.html('<div class="notice notice-error inline"><p>' + response.data.message + '</p></div>');
+                            result.html('<div class="notice notice-error inline"><p>❌ ' + response.data.message + '</p></div>');
                         }
                     },
                     error: function() {
-                        result.html('<div class="notice notice-error inline"><p>Connection test failed</p></div>');
+                        result.html('<div class="notice notice-error inline"><p>❌ Connection test failed - network error</p></div>');
                     },
                     complete: function() {
-                        btn.prop('disabled', false).text('Test Connection');
+                        btn.prop('disabled', false).text('🔍 Test Connection');
+                    }
+                });
+            });
+            
+            // Clear Logs
+            $('#dsl-clear-logs').on('click', function() {
+                if (!confirm('Are you sure you want to clear all logs? This cannot be undone.')) {
+                    return;
+                }
+                
+                var btn = $(this);
+                btn.prop('disabled', true).text('Clearing...');
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'dsl_clear_logs',
+                        nonce: '<?php echo wp_create_nonce('dsl_clear_logs'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            alert('✅ Logs cleared successfully!');
+                            location.reload();
+                        } else {
+                            alert('❌ Failed to clear logs');
+                        }
+                    },
+                    error: function() {
+                        alert('❌ Network error');
+                    },
+                    complete: function() {
+                        btn.prop('disabled', false).text('Clear All Logs');
                     }
                 });
             });
@@ -334,5 +386,19 @@ class DSL_Settings {
         } else {
             wp_send_json_error($result);
         }
+    }
+    
+    public function ajax_clear_logs() {
+        check_ajax_referer('dsl_clear_logs', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Permission denied'));
+        }
+        
+        DSL_Logger::clear_logs();
+        
+        wp_send_json_success(array(
+            'message' => 'All logs cleared successfully'
+        ));
     }
 }

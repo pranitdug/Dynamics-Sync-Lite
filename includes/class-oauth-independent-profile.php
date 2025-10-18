@@ -1,8 +1,6 @@
 <?php
 /**
- * OAuth-Independent Profile Handler - PRODUCTION READY (FIXED)
- * 
- * Users sign in with Microsoft, edit Dynamics data WITHOUT WordPress account
+ * OAuth Independent Profile Handler - FIXED LOGOUT
  */
 
 if (!defined('ABSPATH')) {
@@ -23,7 +21,7 @@ class DSL_OAuth_Independent_Profile {
     private function __construct() {
         add_shortcode('dynamics_profile_oauth', array($this, 'render_profile_form'));
         
-        // AJAX - works for both logged-in and non-logged-in
+        // AJAX handlers
         add_action('wp_ajax_nopriv_dsl_oauth_get_profile', array($this, 'ajax_get_profile'));
         add_action('wp_ajax_nopriv_dsl_oauth_update_profile', array($this, 'ajax_update_profile'));
         add_action('wp_ajax_dsl_oauth_get_profile', array($this, 'ajax_get_profile'));
@@ -142,6 +140,55 @@ class DSL_OAuth_Independent_Profile {
                 </form>
             </div>
         </div>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Handle logout button
+            $(document).on('click', '#dsl-oauth-logout-btn', function(e) {
+                e.preventDefault();
+                var btn = $(this);
+                
+                if (!confirm('Are you sure you want to logout?')) {
+                    return;
+                }
+                
+                btn.prop('disabled', true).text('Logging out...');
+                
+                $.ajax({
+                    url: dslAjax.ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'dsl_oauth_logout',
+                        nonce: dslAjax.nonce
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            // Clear UI and show login section
+                            $('#dsl-oauth-profile-section').fadeOut(300, function() {
+                                $('#dsl-oauth-login-section').fadeIn(300);
+                            });
+                            
+                            // Show success message
+                            var msg = '<div class="dsl-oauth-notice dsl-oauth-notice-success">You have been logged out successfully.</div>';
+                            $('#dsl-oauth-message-container').html(msg);
+                            
+                            // Reload page after 2 seconds
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 2000);
+                        } else {
+                            alert('Logout failed. Please try again.');
+                            btn.prop('disabled', false).text('Logout');
+                        }
+                    },
+                    error: function() {
+                        alert('Network error. Please try again.');
+                        btn.prop('disabled', false).text('Logout');
+                    }
+                });
+            });
+        });
+        </script>
         <?php
         return ob_get_clean();
     }
@@ -251,7 +298,7 @@ class DSL_OAuth_Independent_Profile {
         $data = array(
             'firstname' => sanitize_text_field($_POST['firstname'] ?? ''),
             'lastname' => sanitize_text_field($_POST['lastname'] ?? ''),
-            'emailaddress1' => $email, // Use OAuth email
+            'emailaddress1' => $email,
             'telephone1' => sanitize_text_field($_POST['phone'] ?? ''),
             'address1_line1' => sanitize_text_field($_POST['address'] ?? ''),
             'address1_city' => sanitize_text_field($_POST['city'] ?? ''),
