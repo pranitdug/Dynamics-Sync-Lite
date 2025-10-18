@@ -1,8 +1,9 @@
 <?php
 /**
- * Dynamics 365 API Handler
+ * Dynamics 365 API Handler (FIXED VERSION)
  * 
  * Handles all communication with Microsoft Dynamics 365 API
+ * With improved error handling and debugging
  */
 
 if (!defined('ABSPATH')) {
@@ -66,7 +67,7 @@ class DSL_Dynamics_API {
     }
     
     /**
-     * Get OAuth 2.0 access token
+     * Get OAuth 2.0 access token with enhanced error handling
      */
     private function get_access_token() {
         // Return cached token if still valid
@@ -89,21 +90,37 @@ class DSL_Dynamics_API {
             'grant_type' => 'client_credentials',
             'client_id' => $this->client_id,
             'client_secret' => $this->client_secret,
-            'scope' => $this->resource_url . '.default'
+            'scope' => rtrim($this->resource_url, '/') . '/.default'
         );
+        
+        DSL_Logger::log('info', 'Requesting access token', array(
+            'token_url' => $token_url,
+            'scope' => $this->resource_url . '.default'
+        ));
         
         $response = wp_remote_post($token_url, array(
             'body' => $body,
             'timeout' => 30,
-            'sslverify' => true
+            'sslverify' => true,
+            'user-agent' => 'Dynamics-Sync-Lite/1.0'
         ));
         
         if (is_wp_error($response)) {
-            DSL_Logger::log('error', 'Token request failed: ' . $response->get_error_message());
+            $error_msg = $response->get_error_message();
+            DSL_Logger::log('error', 'Token request failed: ' . $error_msg, array(
+                'error_code' => $response->get_error_code()
+            ));
             return false;
         }
         
-        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $status_code = wp_remote_retrieve_response_code($response);
+        $response_body = wp_remote_retrieve_body($response);
+        
+        DSL_Logger::log('info', 'Token response status: ' . $status_code, array(
+            'body' => $response_body
+        ));
+        
+        $body = json_decode($response_body, true);
         
         if (isset($body['access_token'])) {
             $this->access_token = $body['access_token'];
@@ -115,16 +132,19 @@ class DSL_Dynamics_API {
                 'expires' => $this->token_expires
             ), $body['expires_in'] - 300);
             
-            DSL_Logger::log('info', 'Access token obtained successfully');
+            DSL_Logger::log('success', 'Access token obtained successfully');
             return $this->access_token;
         }
         
-        DSL_Logger::log('error', 'Failed to obtain access token: ' . print_r($body, true));
+        $error_desc = $body['error_description'] ?? $body['error'] ?? 'Unknown error';
+        DSL_Logger::log('error', 'Failed to obtain access token: ' . $error_desc, array(
+            'response' => $body
+        ));
         return false;
     }
     
     /**
-     * Make API request
+     * Make API request with enhanced error handling
      */
     private function request($method, $endpoint, $data = null) {
         if (!$this->is_configured()) {
@@ -133,9 +153,10 @@ class DSL_Dynamics_API {
         
         $token = $this->get_access_token();
         if (!$token) {
-            return new WP_Error('auth_failed', __('Failed to authenticate with Dynamics', 'dynamics-sync-lite'));
+            return new WP_Error('auth_failed', __('Failed to authenticate with Dynamics. Check your credentials and Tenant ID.', 'dynamics-sync-lite'));
         }
         
+        // Build URL - ensure proper formatting
         $url = $this->resource_url . 'api/data/v' . $this->api_version . '/' . ltrim($endpoint, '/');
         
         $args = array(
@@ -149,32 +170,59 @@ class DSL_Dynamics_API {
                 'Prefer' => 'return=representation'
             ),
             'timeout' => 30,
-            'sslverify' => true
+            'sslverify' => true,
+            'user-agent' => 'Dynamics-Sync-Lite/1.0'
         );
         
         if ($data !== null && in_array($method, array('POST', 'PATCH', 'PUT'))) {
             $args['body'] = json_encode($data);
         }
         
-        DSL_Logger::log('info', "API Request: {$method} {$endpoint}");
+        DSL_Logger::log('info', "API Request: {$method} {$endpoint}", array(
+            'url' => $url,
+            'method' => $method
+        ));
         
         $response = wp_remote_request($url, $args);
         
         if (is_wp_error($response)) {
-            DSL_Logger::log('error', 'API request failed: ' . $response->get_error_message());
-            return $response;
+            $error_msg = $response->get_error_message();
+            DSL_Logger::log('error', 'API request failed: ' . $error_msg, array(
+                'error_code' => $response->get_error_code(),
+                'url' => $url
+            ));
+            return new WP_Error('request_failed', 'API request failed: ' . $error_msg);
         }
         
         $status_code = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
+        $headers = wp_remote_retrieve_headers($response);
+        
+        DSL_Logger::log('info', "API Response: Status {$status_code}", array(
+            'status' => $status_code,
+            'headers' => $headers
+        ));
         
         if ($status_code >= 200 && $status_code < 300) {
             DSL_Logger::log('success', "API request successful: {$status_code}");
             return json_decode($body, true);
         }
         
-        DSL_Logger::log('error', "API request failed with status {$status_code}: {$body}");
-        return new WP_Error('api_error', __('Dynamics API request failed', 'dynamics-sync-lite'), array(
+        // Enhanced error logging
+        $error_details = array(
+            'status' => $status_code,
+            'body' => $body,
+            'url' => $url,
+            'method' => $method
+        );
+        
+        DSL_Logger::log('error', "API request failed with status {$status_code}", $error_details);
+        
+        // Parse error message
+        $error_body = json_decode($body, true);
+        $error_msg = $error_body['error']['message'] ?? $body ?? 'Unknown error';
+        
+        return new WP_Error('api_error', __('Dynamics API request failed: ', 'dynamics-sync-lite') . $error_msg, array(
             'status' => $status_code,
             'body' => $body
         ));
@@ -288,7 +336,7 @@ class DSL_Dynamics_API {
     }
     
     /**
-     * Test API connection
+     * Test API connection with detailed diagnostics
      */
     public function test_connection() {
         // Use demo mode if enabled
@@ -296,19 +344,73 @@ class DSL_Dynamics_API {
             return DSL_Demo_Mode::test_connection();
         }
         
+        // Validate configuration
+        if (empty($this->client_id)) {
+            return array(
+                'success' => false,
+                'message' => __('Client ID is not configured', 'dynamics-sync-lite')
+            );
+        }
+        
+        if (empty($this->client_secret)) {
+            return array(
+                'success' => false,
+                'message' => __('Client Secret is not configured', 'dynamics-sync-lite')
+            );
+        }
+        
+        if (empty($this->tenant_id)) {
+            return array(
+                'success' => false,
+                'message' => __('Tenant ID is not configured', 'dynamics-sync-lite')
+            );
+        }
+        
+        if (empty($this->resource_url)) {
+            return array(
+                'success' => false,
+                'message' => __('Resource URL is not configured', 'dynamics-sync-lite')
+            );
+        }
+        
+        // Verify Resource URL format
+        if (strpos($this->resource_url, 'https://') !== 0) {
+            return array(
+                'success' => false,
+                'message' => __('Resource URL must start with https://', 'dynamics-sync-lite')
+            );
+        }
+        
+        if (substr($this->resource_url, -1) !== '/') {
+            return array(
+                'success' => false,
+                'message' => __('Resource URL must end with a forward slash (/)', 'dynamics-sync-lite')
+            );
+        }
+        
+        // Test token retrieval
+        $token = $this->get_access_token();
+        if (!$token) {
+            return array(
+                'success' => false,
+                'message' => __('Failed to obtain access token. Check Client ID, Client Secret, and Tenant ID.', 'dynamics-sync-lite')
+            );
+        }
+        
+        // Test API endpoint
         $endpoint = 'contacts?\$top=1';
         $result = $this->request('GET', $endpoint);
         
         if (is_wp_error($result)) {
             return array(
                 'success' => false,
-                'message' => $result->get_error_message()
+                'message' => __('API request failed: ', 'dynamics-sync-lite') . $result->get_error_message()
             );
         }
         
         return array(
             'success' => true,
-            'message' => __('Connection successful!', 'dynamics-sync-lite')
+            'message' => __('Connection successful! API is working correctly.', 'dynamics-sync-lite')
         );
     }
 }
