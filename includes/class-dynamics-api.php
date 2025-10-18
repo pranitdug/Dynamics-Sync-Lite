@@ -111,12 +111,19 @@ class DSL_Dynamics_API {
                 'expires' => $this->token_expires
             ), $body['expires_in'] - 300);
             
-            DSL_Logger::log('success', 'Access token obtained');
+            DSL_Logger::log('success', 'Access token obtained', array(
+                'expires_in' => $body['expires_in']
+            ));
             return $this->access_token;
         }
         
+        // Enhanced error logging
         $error = $body['error_description'] ?? $body['error'] ?? 'Unknown error';
-        DSL_Logger::log('error', 'Token error: ' . $error);
+        DSL_Logger::log('error', 'Token error: ' . $error, array(
+            'status' => $status,
+            'error_code' => $body['error'] ?? 'unknown',
+            'full_response' => $body
+        ));
         return false;
     }
     
