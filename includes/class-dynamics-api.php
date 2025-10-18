@@ -3,7 +3,7 @@
  * Dynamics 365 API Handler (FIXED VERSION)
  * 
  * Handles all communication with Microsoft Dynamics 365 API
- * With improved error handling and debugging
+ * With improved error handling and 500 error fixes
  */
 
 if (!defined('ABSPATH')) {
@@ -47,8 +47,13 @@ class DSL_Dynamics_API {
         $this->client_id = get_option('dsl_client_id', '');
         $this->client_secret = get_option('dsl_client_secret', '');
         $this->tenant_id = get_option('dsl_tenant_id', '');
-        $this->resource_url = trailingslashit(get_option('dsl_resource_url', ''));
+        $this->resource_url = get_option('dsl_resource_url', '');
         $this->api_version = get_option('dsl_api_version', '9.2');
+        
+        // Ensure trailing slash on resource URL
+        if (!empty($this->resource_url) && substr($this->resource_url, -1) !== '/') {
+            $this->resource_url .= '/';
+        }
     }
     
     /**
@@ -77,32 +82,42 @@ class DSL_Dynamics_API {
         
         // Check transient for stored token
         $cached_token = get_transient('dsl_access_token');
-        if ($cached_token) {
+        if ($cached_token && is_array($cached_token)) {
             $this->access_token = $cached_token['token'];
             $this->token_expires = $cached_token['expires'];
-            return $this->access_token;
+            if (time() < $this->token_expires) {
+                return $this->access_token;
+            }
         }
         
         // Request new token
         $token_url = "https://login.microsoftonline.com/{$this->tenant_id}/oauth2/v2.0/token";
         
+        // Build scope correctly
+        $scope = rtrim($this->resource_url, '/') . '/.default';
+        
         $body = array(
             'grant_type' => 'client_credentials',
             'client_id' => $this->client_id,
             'client_secret' => $this->client_secret,
-            'scope' => rtrim($this->resource_url, '/') . '/.default'
+            'scope' => $scope
         );
         
         DSL_Logger::log('info', 'Requesting access token', array(
             'token_url' => $token_url,
-            'scope' => $this->resource_url . '.default'
+            'scope' => $scope,
+            'client_id_length' => strlen($this->client_id),
+            'tenant_id_length' => strlen($this->tenant_id)
         ));
         
         $response = wp_remote_post($token_url, array(
             'body' => $body,
             'timeout' => 30,
             'sslverify' => true,
-            'user-agent' => 'Dynamics-Sync-Lite/1.0'
+            'user-agent' => 'Dynamics-Sync-Lite/1.0',
+            'headers' => array(
+                'Content-Type' => 'application/x-www-form-urlencoded'
+            )
         ));
         
         if (is_wp_error($response)) {
@@ -116,13 +131,14 @@ class DSL_Dynamics_API {
         $status_code = wp_remote_retrieve_response_code($response);
         $response_body = wp_remote_retrieve_body($response);
         
-        DSL_Logger::log('info', 'Token response status: ' . $status_code, array(
-            'body' => $response_body
+        DSL_Logger::log('info', 'Token response received', array(
+            'status' => $status_code,
+            'body_length' => strlen($response_body)
         ));
         
         $body = json_decode($response_body, true);
         
-        if (isset($body['access_token'])) {
+        if ($status_code === 200 && isset($body['access_token'])) {
             $this->access_token = $body['access_token'];
             $this->token_expires = time() + ($body['expires_in'] - 300); // 5 min buffer
             
@@ -138,6 +154,7 @@ class DSL_Dynamics_API {
         
         $error_desc = $body['error_description'] ?? $body['error'] ?? 'Unknown error';
         DSL_Logger::log('error', 'Failed to obtain access token: ' . $error_desc, array(
+            'status' => $status_code,
             'response' => $body
         ));
         return false;
@@ -153,7 +170,7 @@ class DSL_Dynamics_API {
         
         $token = $this->get_access_token();
         if (!$token) {
-            return new WP_Error('auth_failed', __('Failed to authenticate with Dynamics. Check your credentials and Tenant ID.', 'dynamics-sync-lite'));
+            return new WP_Error('auth_failed', __('Failed to authenticate with Dynamics. Check your credentials.', 'dynamics-sync-lite'));
         }
         
         // Build URL - ensure proper formatting
@@ -180,7 +197,8 @@ class DSL_Dynamics_API {
         
         DSL_Logger::log('info', "API Request: {$method} {$endpoint}", array(
             'url' => $url,
-            'method' => $method
+            'method' => $method,
+            'has_data' => ($data !== null)
         ));
         
         $response = wp_remote_request($url, $args);
@@ -196,33 +214,43 @@ class DSL_Dynamics_API {
         
         $status_code = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
-        $headers = wp_remote_retrieve_headers($response);
         
         DSL_Logger::log('info', "API Response: Status {$status_code}", array(
             'status' => $status_code,
-            'headers' => $headers
+            'body_length' => strlen($body)
         ));
         
         if ($status_code >= 200 && $status_code < 300) {
             DSL_Logger::log('success', "API request successful: {$status_code}");
-            return json_decode($body, true);
+            $decoded = json_decode($body, true);
+            return $decoded !== null ? $decoded : array('success' => true);
         }
         
         // Enhanced error logging
         $error_details = array(
             'status' => $status_code,
-            'body' => $body,
             'url' => $url,
-            'method' => $method
+            'method' => $method,
+            'body_preview' => substr($body, 0, 500)
         );
         
         DSL_Logger::log('error', "API request failed with status {$status_code}", $error_details);
         
         // Parse error message
         $error_body = json_decode($body, true);
-        $error_msg = $error_body['error']['message'] ?? $body ?? 'Unknown error';
+        $error_msg = 'Unknown error';
         
-        return new WP_Error('api_error', __('Dynamics API request failed: ', 'dynamics-sync-lite') . $error_msg, array(
+        if (is_array($error_body) && isset($error_body['error'])) {
+            if (is_array($error_body['error'])) {
+                $error_msg = $error_body['error']['message'] ?? json_encode($error_body['error']);
+            } else {
+                $error_msg = $error_body['error'];
+            }
+        } elseif (!empty($body)) {
+            $error_msg = substr($body, 0, 200);
+        }
+        
+        return new WP_Error('api_error', __('Dynamics API Error: ', 'dynamics-sync-lite') . $error_msg, array(
             'status' => $status_code,
             'body' => $body
         ));
@@ -298,7 +326,6 @@ class DSL_Dynamics_API {
         $endpoint = "contacts({$contact_id})";
         
         DSL_Logger::log('info', 'Updating contact: ' . $contact_id, array(
-            'user_id' => get_current_user_id(),
             'data' => $update_data
         ));
         
@@ -328,7 +355,6 @@ class DSL_Dynamics_API {
         );
         
         DSL_Logger::log('info', 'Creating new contact', array(
-            'user_id' => get_current_user_id(),
             'email' => $create_data['emailaddress1']
         ));
         
@@ -378,13 +404,6 @@ class DSL_Dynamics_API {
             return array(
                 'success' => false,
                 'message' => __('Resource URL must start with https://', 'dynamics-sync-lite')
-            );
-        }
-        
-        if (substr($this->resource_url, -1) !== '/') {
-            return array(
-                'success' => false,
-                'message' => __('Resource URL must end with a forward slash (/)', 'dynamics-sync-lite')
             );
         }
         

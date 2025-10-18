@@ -1,7 +1,9 @@
 <?php
 /**
- * OAuth-Independent User Profile Handler
- * Users sign in with Microsoft, edit Dynamics data without WordPress account
+ * OAuth-Independent User Profile Handler - PRODUCTION READY
+ * 
+ * Users sign in with Microsoft OAuth, edit Dynamics data WITHOUT WordPress account
+ * This allows external users to manage their Dynamics contact info
  */
 
 if (!defined('ABSPATH')) {
@@ -23,7 +25,7 @@ class DSL_OAuth_Independent_Profile {
         // Add shortcode for independent profile
         add_shortcode('dynamics_profile_oauth', array($this, 'render_profile_form'));
         
-        // AJAX handlers for non-WP users
+        // AJAX handlers - work for both logged-in and non-logged-in users
         add_action('wp_ajax_nopriv_dsl_oauth_get_profile', array($this, 'ajax_get_profile'));
         add_action('wp_ajax_nopriv_dsl_oauth_update_profile', array($this, 'ajax_update_profile'));
         add_action('wp_ajax_dsl_oauth_get_profile', array($this, 'ajax_get_profile'));
@@ -48,7 +50,7 @@ class DSL_OAuth_Independent_Profile {
             
             <!-- Login Section -->
             <div id="dsl-oauth-login-section" class="dsl-oauth-login-section">
-                <?php echo do_shortcode('[dynamics_login text="Sign In with Microsoft"]'); ?>
+                <?php echo do_shortcode('[dynamics_login_independent text="Sign In with Microsoft"]'); ?>
             </div>
             
             <!-- Profile Section (hidden until logged in) -->
@@ -101,7 +103,8 @@ class DSL_OAuth_Independent_Profile {
                                    class="dsl-oauth-input" 
                                    required 
                                    autocomplete="email"
-                                   readonly />
+                                   readonly 
+                                   title="<?php esc_attr_e('Email cannot be changed', 'dynamics-sync-lite'); ?>" />
                         </div>
                         
                         <div class="dsl-oauth-form-group">
@@ -199,20 +202,24 @@ class DSL_OAuth_Independent_Profile {
      * Get user's OAuth session info
      */
     private function get_oauth_session() {
-        // Check if user has OAuth token in session
-        if (!isset($_SESSION)) {
+        // Ensure session is started
+        if (!session_id() && !headers_sent()) {
             session_start();
         }
         
-        $token = isset($_SESSION['dsl_oauth_token']) ? $_SESSION['dsl_oauth_token'] : false;
-        $user_email = isset($_SESSION['dsl_oauth_email']) ? $_SESSION['dsl_oauth_email'] : false;
+        $token = isset($_SESSION['dsl_oauth_token']) ? $_SESSION['dsl_oauth_token'] : '';
+        $user_email = isset($_SESSION['dsl_oauth_email']) ? $_SESSION['dsl_oauth_email'] : '';
         $user_info = isset($_SESSION['dsl_oauth_user_info']) ? $_SESSION['dsl_oauth_user_info'] : array();
+        $expires = isset($_SESSION['dsl_oauth_expires']) ? intval($_SESSION['dsl_oauth_expires']) : 0;
+        
+        $is_authenticated = !empty($token) && !empty($user_email) && ($expires === 0 || $expires > time());
         
         return array(
             'token' => $token,
             'email' => $user_email,
             'user_info' => $user_info,
-            'is_authenticated' => !empty($token) && !empty($user_email)
+            'expires' => $expires,
+            'is_authenticated' => $is_authenticated
         );
     }
     
@@ -224,14 +231,30 @@ class DSL_OAuth_Independent_Profile {
         
         $session = $this->get_oauth_session();
         
+        DSL_Logger::log('info', 'OAuth profile get attempt', array(
+            'is_authenticated' => $session['is_authenticated'],
+            'has_token' => !empty($session['token']),
+            'has_email' => !empty($session['email']),
+            'expires' => $session['expires'],
+            'current_time' => time()
+        ));
+        
         if (!$session['is_authenticated']) {
             wp_send_json_error(array(
-                'message' => __('You must sign in first', 'dynamics-sync-lite')
+                'message' => __('You must sign in first to view your profile.', 'dynamics-sync-lite'),
+                'code' => 'not_authenticated'
             ));
         }
         
         $email = $session['email'];
         $api = DSL_Dynamics_API::get_instance();
+        
+        // Check if API is configured
+        if (!$api->is_configured()) {
+            wp_send_json_error(array(
+                'message' => __('Dynamics 365 API is not configured. Please contact the administrator.', 'dynamics-sync-lite')
+            ));
+        }
         
         // Get contact from Dynamics using OAuth user's email
         $contact = $api->get_contact_by_email($email);
@@ -263,13 +286,14 @@ class DSL_OAuth_Independent_Profile {
             ));
         }
         
-        DSL_Logger::log('info', 'OAuth profile loaded', array(
-            'email' => $email
+        DSL_Logger::log('success', 'OAuth profile loaded', array(
+            'email' => $email,
+            'contact_id' => $contact['contactid'] ?? 'unknown'
         ));
         
         wp_send_json_success(array(
             'contact' => $contact,
-            'message' => __('Profile loaded successfully', 'dynamics-sync-lite')
+            'message' => __('Profile loaded successfully.', 'dynamics-sync-lite')
         ));
     }
     
@@ -283,18 +307,26 @@ class DSL_OAuth_Independent_Profile {
         
         if (!$session['is_authenticated']) {
             wp_send_json_error(array(
-                'message' => __('You must sign in first', 'dynamics-sync-lite')
+                'message' => __('You must sign in first to update your profile.', 'dynamics-sync-lite'),
+                'code' => 'not_authenticated'
             ));
         }
         
         $email = $session['email'];
         $api = DSL_Dynamics_API::get_instance();
         
+        // Check if API is configured
+        if (!$api->is_configured()) {
+            wp_send_json_error(array(
+                'message' => __('Dynamics 365 API is not configured. Please contact the administrator.', 'dynamics-sync-lite')
+            ));
+        }
+        
         // Validate and sanitize input
         $data = array(
             'firstname' => sanitize_text_field($_POST['firstname'] ?? ''),
             'lastname' => sanitize_text_field($_POST['lastname'] ?? ''),
-            'emailaddress1' => $email, // Use OAuth email (can't change)
+            'emailaddress1' => $email, // Use OAuth email (cannot be changed)
             'telephone1' => sanitize_text_field($_POST['phone'] ?? ''),
             'address1_line1' => sanitize_text_field($_POST['address'] ?? ''),
             'address1_city' => sanitize_text_field($_POST['city'] ?? ''),
@@ -306,11 +338,11 @@ class DSL_OAuth_Independent_Profile {
         // Validation
         if (empty($data['firstname']) || empty($data['lastname'])) {
             wp_send_json_error(array(
-                'message' => __('First name and last name are required', 'dynamics-sync-lite')
+                'message' => __('First name and last name are required fields.', 'dynamics-sync-lite')
             ));
         }
         
-        // Try to get existing contact ID
+        // Try to get existing contact
         $existing = $api->get_contact_by_email($email);
         
         if (is_wp_error($existing)) {
@@ -318,6 +350,11 @@ class DSL_OAuth_Independent_Profile {
             $result = $api->create_contact($data);
             
             if (is_wp_error($result)) {
+                DSL_Logger::log('error', 'OAuth profile creation failed', array(
+                    'email' => $email,
+                    'error' => $result->get_error_message()
+                ));
+                
                 wp_send_json_error(array(
                     'message' => $result->get_error_message()
                 ));
@@ -337,6 +374,12 @@ class DSL_OAuth_Independent_Profile {
             $result = $api->update_contact($contact_id, $data);
             
             if (is_wp_error($result)) {
+                DSL_Logger::log('error', 'OAuth profile update failed', array(
+                    'email' => $email,
+                    'contact_id' => $contact_id,
+                    'error' => $result->get_error_message()
+                ));
+                
                 wp_send_json_error(array(
                     'message' => $result->get_error_message()
                 ));

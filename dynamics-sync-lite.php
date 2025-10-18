@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Plugin Name: Dynamics Sync Lite
  * Plugin URI: https://github.com/yourusername/dynamics-sync-lite
@@ -30,7 +29,6 @@ define('DSL_PLUGIN_BASENAME', plugin_basename(__FILE__));
  */
 class Dynamics_Sync_Lite
 {
-
     private static $instance = null;
 
     /**
@@ -75,10 +73,13 @@ class Dynamics_Sync_Lite
     private function init_hooks()
     {
         add_action('plugins_loaded', array($this, 'load_textdomain'));
-        add_action('init', array($this, 'init'));
+        add_action('init', array($this, 'init'), 5);
 
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
+        
+        // Add admin notices for configuration
+        add_action('admin_notices', array($this, 'configuration_notice'));
     }
 
     /**
@@ -98,11 +99,12 @@ class Dynamics_Sync_Lite
      */
     public function init()
     {
-        // Enable sessions for OAuth
-        if (!session_id()) {
+        // Start session for OAuth (early, before any output)
+        if (!session_id() && !headers_sent()) {
             session_start();
         }
-        // Initialize settings
+
+        // Initialize settings first
         DSL_Settings::get_instance();
 
         // Initialize OAuth login
@@ -122,10 +124,47 @@ class Dynamics_Sync_Lite
     }
 
     /**
+     * Show configuration notice
+     */
+    public function configuration_notice()
+    {
+        $api = DSL_Dynamics_API::get_instance();
+        
+        // Don't show if demo mode is enabled
+        if (DSL_Demo_Mode::is_enabled()) {
+            return;
+        }
+        
+        // Don't show if already configured
+        if ($api->is_configured()) {
+            return;
+        }
+        
+        // Only show on relevant pages
+        $screen = get_current_screen();
+        if (!$screen || !in_array($screen->id, array('dashboard', 'plugins', 'settings_page_dynamics-sync-lite'))) {
+            return;
+        }
+        
+        $settings_url = admin_url('options-general.php?page=dynamics-sync-lite');
+        ?>
+        <div class="notice notice-warning is-dismissible">
+            <p>
+                <strong><?php _e('Dynamics Sync Lite:', 'dynamics-sync-lite'); ?></strong>
+                <?php _e('Plugin is not configured yet.', 'dynamics-sync-lite'); ?>
+                <a href="<?php echo esc_url($settings_url); ?>"><?php _e('Configure now', 'dynamics-sync-lite'); ?></a>
+                <?php _e('or enable Demo Mode for testing.', 'dynamics-sync-lite'); ?>
+            </p>
+        </div>
+        <?php
+    }
+
+    /**
      * Enqueue public assets
      */
     public function enqueue_public_assets()
     {
+        // Main public styles
         wp_enqueue_style(
             'dsl-public-style',
             DSL_PLUGIN_URL . 'public/css/public-style.css',
@@ -133,6 +172,7 @@ class Dynamics_Sync_Lite
             DSL_VERSION
         );
 
+        // Main public script
         wp_enqueue_script(
             'dsl-public-script',
             DSL_PLUGIN_URL . 'public/js/public-script.js',
@@ -141,6 +181,7 @@ class Dynamics_Sync_Lite
             true
         );
 
+        // Localize script with AJAX data
         wp_localize_script('dsl-public-script', 'dslAjax', array(
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('dsl_ajax_nonce'),
@@ -148,9 +189,13 @@ class Dynamics_Sync_Lite
                 'updating' => __('Updating...', 'dynamics-sync-lite'),
                 'loading' => __('Loading...', 'dynamics-sync-lite'),
                 'success' => __('Profile updated successfully!', 'dynamics-sync-lite'),
-                'error' => __('An error occurred. Please try again.', 'dynamics-sync-lite')
+                'error' => __('An error occurred. Please try again.', 'dynamics-sync-lite'),
+                'required' => __('This field is required.', 'dynamics-sync-lite'),
+                'invalid_email' => __('Please enter a valid email address.', 'dynamics-sync-lite')
             )
         ));
+
+        // OAuth profile styles
         wp_enqueue_style(
             'dsl-oauth-profile-style',
             DSL_PLUGIN_URL . 'public/css/oauth-profile-style.css',
@@ -158,6 +203,7 @@ class Dynamics_Sync_Lite
             DSL_VERSION
         );
 
+        // OAuth profile script
         wp_enqueue_script(
             'dsl-oauth-profile-script',
             DSL_PLUGIN_URL . 'public/js/oauth-profile-script.js',
@@ -172,6 +218,7 @@ class Dynamics_Sync_Lite
      */
     public function enqueue_admin_assets($hook)
     {
+        // Admin styles
         wp_enqueue_style(
             'dsl-admin-style',
             DSL_PLUGIN_URL . 'admin/css/admin-style.css',
@@ -179,6 +226,7 @@ class Dynamics_Sync_Lite
             DSL_VERSION
         );
 
+        // Admin script
         wp_enqueue_script(
             'dsl-admin-script',
             DSL_PLUGIN_URL . 'admin/js/admin-script.js',
@@ -217,8 +265,13 @@ class Dynamics_Sync_Lite
         }
 
         // Register OAuth endpoint
-        DSL_OAuth_Login::get_instance()->register_endpoints();
+        add_rewrite_rule(
+            '^dynamics-oauth-callback/?$',
+            'index.php?dynamics_oauth_callback=1',
+            'top'
+        );
 
+        // Flush rewrite rules
         flush_rewrite_rules();
 
         DSL_Logger::log('info', 'Plugin activated');
@@ -229,17 +282,20 @@ class Dynamics_Sync_Lite
      */
     public function deactivate()
     {
+        // Flush rewrite rules
         flush_rewrite_rules();
 
         DSL_Logger::log('info', 'Plugin deactivated');
     }
 }
 
-// Initialize the plugin
+/**
+ * Initialize the plugin
+ */
 function dsl_init()
 {
     return Dynamics_Sync_Lite::get_instance();
 }
 
 // Start the plugin
-dsl_init();
+add_action('plugins_loaded', 'dsl_init', 0);
