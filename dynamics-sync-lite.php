@@ -1,11 +1,10 @@
 <?php
 /**
- * Plugin Name: Dynamics Sync Lite
- * Plugin URI: https://github.com/yourusername/dynamics-sync-lite
- * Description: Synchronize WordPress user data with Microsoft Dynamics 365 CRM. Allows users to view and update their contact information.
+ * Plugin Name: Dynamics Sync Lite - Pranit
+ * Plugin URI: https://github.com/pranitdug/Dynamics-Sync-Lit
+ * Description: Synchronize WordPress user data with Microsoft Dynamics 365 CRM. Allows users to view and update their contact information. (Project Made By Pranit Dugad for NielsenIQ)
  * Version: 1.0.0
- * Author: Your Name
- * Author URI: https://yourwebsite.com
+ * Author: Pranit Dugad
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: dynamics-sync-lite

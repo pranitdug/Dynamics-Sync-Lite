@@ -35,7 +35,7 @@ A WordPress plugin that enables seamless synchronization between WordPress user 
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/dynamics-sync-lite.git
+git clone https://github.com/pranitdug/Dynamics-Sync-Lite.git
 
 # Or download as ZIP and extract to wp-content/plugins/
 ```
@@ -368,70 +368,3 @@ Contributions are welcome! Please follow these guidelines:
 This plugin is licensed under GPL v2 or later.
 
 ---
-
-## 👥 Support
-
-For questions, issues, or feature requests:
-
-- **GitHub Issues**: [Create an issue](https://github.com/yourusername/dynamics-sync-lite/issues)
-- **Documentation**: [Wiki](https://github.com/yourusername/dynamics-sync-lite/wiki)
-- **Email**: support@yourcompany.com
-
----
-
-## 🎬 Video Walkthrough
-
-📹 **[Watch the Loom Video](https://www.loom.com/share/your-video-id)**
-
-The video covers:
-- Plugin installation and configuration
-- Azure AD app setup
-- Creating and using the contact form
-- Webhook configuration
-- Troubleshooting common issues
-- Code architecture overview
-- Key challenges and solutions
-
----
-
-## ✅ Development Checklist
-
-- [x] OAuth 2.0 authentication with Dynamics 365
-- [x] Secure API communication (HTTPS, nonces, sanitization)
-- [x] Frontend form with shortcode
-- [x] Real-time data fetching and updating
-- [x] Activity logging system
-- [x] Admin settings page
-- [x] WordPress coding standards
-- [x] Webhook listener (bonus)
-- [x] Dashboard widget (bonus)
-- [x] Comprehensive documentation
-- [x] Error handling and user feedback
-- [x] Responsive design
-- [x] Security best practices
-
----
-
-## 🔄 Changelog
-
-### Version 1.0.0 - Initial Release
-- OAuth 2.0 authentication
-- Contact data synchronization
-- Frontend shortcode form
-- Activity logging
-- Admin settings interface
-- Webhook support
-- Dashboard widget
-- Comprehensive security measures
-
----
-
-## 🙏 Acknowledgments
-
-- WordPress Core Team for excellent documentation
-- Microsoft for Dynamics 365 API documentation
-- The open-source community for inspiration and best practices
-
----
-
-**Built with ❤️ for nonprofits managing donor relationships**
