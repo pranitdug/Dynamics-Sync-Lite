@@ -1,0 +1,481 @@
+/**
+ * Frontend Styles for Dynamics Sync Lite
+ */
+
+.dsl-contact-form-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Header with logout */
+.dsl-header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #2271b1;
+}
+
+.dsl-form-title {
+    margin: 0;
+    color: #1e293b;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.dsl-user-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.dsl-welcome {
+    font-size: 14px;
+    color: #475569;
+}
+
+.dsl-logout-link {
+    padding: 6px 12px;
+    background: #dc2626;
+    color: #fff !important;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 13px;
+    transition: background 0.3s;
+}
+
+.dsl-logout-link:hover {
+    background: #b91c1c;
+}
+
+/* Loading State */
+.dsl-loading {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.dsl-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #2271b1;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: dsl-spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes dsl-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Form Styles */
+.dsl-form {
+    margin-top: 20px;
+}
+
+.dsl-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .dsl-form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .dsl-header-actions {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .dsl-user-info {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+.dsl-form-group {
+    margin-bottom: 20px;
+}
+
+.dsl-form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #1e293b;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.dsl-form-group label .required {
+    color: #d63638;
+    margin-left: 2px;
+}
+
+.dsl-form-group input[type="text"],
+.dsl-form-group input[type="email"],
+.dsl-form-group input[type="tel"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+    box-sizing: border-box;
+}
+
+.dsl-form-group input[type="text"]:focus,
+.dsl-form-group input[type="email"]:focus,
+.dsl-form-group input[type="tel"]:focus {
+    outline: none;
+    border-color: #2271b1;
+    box-shadow: 0 0 0 3px rgba(34, 113, 177, 0.1);
+}
+
+.dsl-form-group input[readonly] {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+}
+
+.dsl-help-text {
+    display: block;
+    margin-top: 5px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+/* Buttons */
+.dsl-form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.dsl-button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.dsl-button-primary {
+    background-color: #2271b1;
+    color: #ffffff;
+}
+
+.dsl-button-primary:hover:not(:disabled) {
+    background-color: #135e96;
+}
+
+.dsl-button-primary:disabled {
+    background-color: #8c8f94;
+    cursor: not-allowed;
+}
+
+.dsl-button-secondary {
+    background-color: #f0f0f1;
+    color: #2c3338;
+}
+
+.dsl-button-secondary:hover:not(:disabled) {
+    background-color: #dcdcde;
+}
+
+/* Notices */
+.dsl-notice {
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    border-left: 4px solid;
+    border-radius: 4px;
+    display: none;
+}
+
+.dsl-notice p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.dsl-notice-success {
+    background-color: #edfbf6;
+    border-color: #00a32a;
+    color: #00551a;
+}
+
+.dsl-notice-error {
+    background-color: #fcf0f1;
+    border-color: #d63638;
+    color: #8a0000;
+}
+
+.dsl-notice-warning {
+    background-color: #fcf9e8;
+    border-color: #dba617;
+    color: #614200;
+    display: block;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    .dsl-contact-form-wrapper {
+        padding: 15px;
+    }
+    
+    .dsl-form-title {
+        font-size: 20px;
+    }
+    
+    .dsl-form-actions {
+        flex-direction: column;
+    }
+    
+    .dsl-button {
+        width: 100%;
+    }
+}
+
+/* Admin Dashboard Widget Styles */
+.dsl-dashboard-widget table {
+    width: 100%;
+    margin-top: 15px;
+}
+
+.dsl-dashboard-widget table th,
+.dsl-dashboard-widget table td {
+    padding: 8px;
+    text-align: left;
+}
+
+.dsl-dashboard-widget table thead tr {
+    background: #f9f9f9;
+}/**
+ * Frontend Styles for Dynamics Sync Lite
+ */
+
+.dsl-contact-form-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.dsl-form-title {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #1e293b;
+    font-size: 24px;
+    font-weight: 600;
+    border-bottom: 2px solid #2271b1;
+    padding-bottom: 10px;
+}
+
+/* Loading State */
+.dsl-loading {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.dsl-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #2271b1;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: dsl-spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes dsl-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Form Styles */
+.dsl-form {
+    margin-top: 20px;
+}
+
+.dsl-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .dsl-form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.dsl-form-group {
+    margin-bottom: 20px;
+}
+
+.dsl-form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #1e293b;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.dsl-form-group label .required {
+    color: #d63638;
+    margin-left: 2px;
+}
+
+.dsl-form-group input[type="text"],
+.dsl-form-group input[type="email"],
+.dsl-form-group input[type="tel"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+    box-sizing: border-box;
+}
+
+.dsl-form-group input[type="text"]:focus,
+.dsl-form-group input[type="email"]:focus,
+.dsl-form-group input[type="tel"]:focus {
+    outline: none;
+    border-color: #2271b1;
+    box-shadow: 0 0 0 3px rgba(34, 113, 177, 0.1);
+}
+
+.dsl-form-group input[readonly] {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+}
+
+.dsl-help-text {
+    display: block;
+    margin-top: 5px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+/* Buttons */
+.dsl-form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.dsl-button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.dsl-button-primary {
+    background-color: #2271b1;
+    color: #ffffff;
+}
+
+.dsl-button-primary:hover:not(:disabled) {
+    background-color: #135e96;
+}
+
+.dsl-button-primary:disabled {
+    background-color: #8c8f94;
+    cursor: not-allowed;
+}
+
+.dsl-button-secondary {
+    background-color: #f0f0f1;
+    color: #2c3338;
+}
+
+.dsl-button-secondary:hover:not(:disabled) {
+    background-color: #dcdcde;
+}
+
+/* Notices */
+.dsl-notice {
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    border-left: 4px solid;
+    border-radius: 4px;
+    display: none;
+}
+
+.dsl-notice p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.dsl-notice-success {
+    background-color: #edfbf6;
+    border-color: #00a32a;
+    color: #00551a;
+}
+
+.dsl-notice-error {
+    background-color: #fcf0f1;
+    border-color: #d63638;
+    color: #8a0000;
+}
+
+.dsl-notice-warning {
+    background-color: #fcf9e8;
+    border-color: #dba617;
+    color: #614200;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    .dsl-contact-form-wrapper {
+        padding: 15px;
+    }
+    
+    .dsl-form-title {
+        font-size: 20px;
+    }
+    
+    .dsl-form-actions {
+        flex-direction: column;
+    }
+    
+    .dsl-button {
+        width: 100%;
+    }
+}
+
+/* Admin Dashboard Widget Styles */
+.dsl-dashboard-widget table {
+    width: 100%;
+    margin-top: 15px;
+}
+
+.dsl-dashboard-widget table th,
+.dsl-dashboard-widget table td {
+    padding: 8px;
+    text-align: left;
+}
+
+.dsl-dashboard-widget table thead tr {
+    background: #f9f9f9;
+}

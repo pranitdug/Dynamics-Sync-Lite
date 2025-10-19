@@ -1,0 +1,132 @@
+/**
+ * Admin Styles for Dynamics Sync Lite
+ */
+
+/* Settings Page */
+.dsl-settings-header {
+    background: #fff;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid #2271b1;
+}
+
+.dsl-settings-header h1 {
+    margin: 0;
+    color: #1e293b;
+}
+
+/* Usage Card */
+.card {
+    max-width: none;
+    margin-top: 20px;
+}
+
+.card h3 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.card code {
+    display: inline-block;
+    background: #f0f0f1;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    margin: 10px 0;
+}
+
+/* Connection Status */
+#dsl_connection_status {
+    font-weight: 500;
+}
+
+/* Logs Table */
+.wp-list-table .column-id {
+    width: 60px;
+}
+
+.wp-list-table .column-user {
+    width: 150px;
+}
+
+.wp-list-table .column-action {
+    width: 150px;
+}
+
+.wp-list-table .column-date {
+    width: 150px;
+}
+
+/* Dashboard Widget Stats */
+.dsl-stats {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.dsl-stat-box {
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
+    padding: 15px;
+    background: #f0f0f1;
+    border-radius: 4px;
+}
+
+.dsl-stat-box.error {
+    background: #fcf0f1;
+}
+
+.dsl-stat-number {
+    font-size: 32px;
+    font-weight: bold;
+    color: #2271b1;
+    line-height: 1;
+}
+
+.dsl-stat-box.error .dsl-stat-number {
+    color: #d63638;
+}
+
+.dsl-stat-label {
+    font-size: 12px;
+    color: #646970;
+    margin-top: 8px;
+}
+
+/* Dashboard Widget Table */
+.dsl-dashboard-widget table {
+    width: 100%;
+    margin-top: 15px;
+    border-collapse: collapse;
+}
+
+.dsl-dashboard-widget table th {
+    background: #f9f9f9;
+    padding: 8px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid #ddd;
+}
+
+.dsl-dashboard-widget table td {
+    padding: 8px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.dsl-dashboard-widget table tbody tr:hover {
+    background: #f9f9f9;
+}
+
+/* Responsive Admin */
+@media (max-width: 782px) {
+    .dsl-stats {
+        flex-direction: column;
+    }
+    
+    .dsl-stat-box {
+        min-width: auto;
+    }
+}
